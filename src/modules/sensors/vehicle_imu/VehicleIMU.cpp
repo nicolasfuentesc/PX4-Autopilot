@@ -491,6 +491,7 @@ bool VehicleIMU::Publish()
 			const float accel_dt_inv = 1.e6f / imu.delta_velocity_dt;
 			const Vector3f acceleration{_accel_calibration.Correct(delta_velocity * accel_dt_inv)};
 			UpdateAccelVibrationMetrics(acceleration);
+			UpdateAccelSquaredErrorSum(acceleration);
 			const Vector3f delta_velocity_corrected{acceleration / accel_dt_inv};
 
 			// vehicle_imu_status
@@ -508,6 +509,11 @@ bool VehicleIMU::Publish()
 				_accel_sum.zero();
 				_accel_temperature = 0;
 				_accel_sum_count = 0;
+
+				// variance accel
+				const Vector3f variance_accel{_accel_squared_error_sum / _accel_sum_count};
+				variance_accel.copyTo(_status.var_accel);
+				_accel_squared_error_sum.zero();
 
 				// mean gyro
 				const Vector3f gyro_mean{_gyro_calibration.Correct(_gyro_sum / _gyro_sum_count)};
@@ -593,6 +599,13 @@ void VehicleIMU::UpdateIntegratorConfiguration()
 			}
 		}
 	}
+}
+
+void VehicleIMU::UpdateAccelSquaredErrorSum(const Vector3f &acceleration)
+{
+	// Compute the squared error using the average from last publication for efficiency purposes
+	const Vector3f error{acceleration - Vector3f(_status.mean_accel)};
+	_accel_squared_error_sum += error.emult(error);
 }
 
 void VehicleIMU::UpdateAccelVibrationMetrics(const Vector3f &acceleration)
